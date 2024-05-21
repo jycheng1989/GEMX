@@ -21,7 +21,8 @@ integer :: imx,jmx,kmx,mmx,nmx,nsmx,nsubd=8,ntube=4,petsc_color,petsc_rank
 	 character*70 outname
 	 REAL(8) :: endtm,begtm,pstm
 	 REAL(8) :: starttm,lasttm,tottm
-
+         REAL(8) :: start_total_tm, end_total_tm, start_integ_tm, end_integ_tm, start_ppush_tm, end_ppush_tm, start_cpush_tm, end_cpush_tm
+         REAL(8) :: total_tm = 0.0, integ_tm = 0.0, ppush_tm = 0.0, cpush_tm = 0.0
 !          imx,jmx,kmx = max no. of grid pts in x,y,z
 !          mmx         = max no. of particles
 !          nmx         = max. no. of time steps

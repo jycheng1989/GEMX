@@ -15,7 +15,8 @@
       REAL(8) :: dbdxp,dbdzp,bfldp,bfldxp,bfldzp,bfldzetap,vcurlbdotE,dbdzetap=0
       REAL(8) :: rhox(4),rhoy(4),psp,pzp,curlbp(3),Bstar3(3)
 !      real(8),dimension(3)::curlbp,Bstar3
-
+      start_ppush_tm = MPI_WTIME()
+!$acc parallel loop gang vector private(rhoy,bstar3,rhox)
       do m=1,mm(1)
          x=x2(m)
          i = int(x/dxeq)
@@ -89,6 +90,7 @@
          delbzp=0.
 
 !  4 pt. avg. done explicitly for vectorization...
+         !$acc loop seq
          do 200 l=1,lr(1)
 !
             xt=x2(m)+rhox(l) !rwx(1,l)*rhog
@@ -101,7 +103,52 @@
             zeta=zeta2(m)
 !            xt=modulo(xs,xdim)
 !            zt=modulo(zt,zdim)
-            include "pushli.h"
+                       i=int(xt/dx)
+            j=int(zt/dz)
+            k=int(zeta/dzeta)
+
+
+            wx0=float(i+1)-xt/dx
+            wx1=1.-wx0
+            wy0=float(j+1)-zt/dz
+            wy1=1.-wy0
+            wz0=float(k+1)-zeta/dzeta
+            wz1=1.-wz0
+
+              k_plus_1=k+1
+              if(k==kmx) k_plus_1=0
+            exp1=exp1 + wx0*wy0*wz0*ex(i,j,k) + wx1*wy0*wz0*ex(i+1,j,k) &
+            + wx0*wy1*wz0*ex(i,j+1,k) + wx1*wy1*wz0*ex(i+1,j+1,k) + &
+            wx0*wy0*wz1*ex(i,j, k_plus_1) + wx1*wy0*wz1*ex(i+1,j, k_plus_1) + &
+            wx0*wy1*wz1*ex(i,j+1, k_plus_1) + wx1*wy1*wz1*ex(i+1,j+1, k_plus_1)
+
+            ezp=ezp + wx0*wy0*wz0*ez(i,j,k) + wx1*wy0*wz0*ez(i+1,j,k) &
+            + wx0*wy1*wz0*ez(i,j+1,k) + wx1*wy1*wz0*ez(i+1,j+1,k) + &
+            wx0*wy0*wz1*ez(i,j, k_plus_1) + wx1*wy0*wz1*ez(i+1,j, k_plus_1) + &
+            wx0*wy1*wz1*ez(i,j+1, k_plus_1) + wx1*wy1*wz1*ez(i+1,j+1, k_plus_1)
+
+            ezetap =ezetap + wx0*wy0*wz0*ezeta(i,j,k) + wx1*wy0*wz0*ezeta(i+1,j,k) &
+            + wx0*wy1*wz0*ezeta(i,j+1,k) + wx1*wy1*wz0*ezeta(i+1,j+1,k) + &
+            wx0*wy0*wz1*ezeta(i,j, k_plus_1) + wx1*wy0*wz1*ezeta(i+1,j, k_plus_1) + &
+            wx0*wy1*wz1*ezeta(i,j+1, k_plus_1) + wx1*wy1*wz1*ezeta(i+1,j+1, k_plus_1)
+
+            delbxp =delbxp + wx0*wy0*wz0*delbx(i,j,k)  &
+            + wx1*wy0*wz0*delbx(i+1,j,k) &
+            + wx0*wy1*wz0*delbx(i,j+1,k) &
+            + wx1*wy1*wz0*delbx(i+1,j+1,k) &
+            + wx0*wy0*wz1*delbx(i,j, k_plus_1) &
+            + wx1*wy0*wz1*delbx(i+1,j, k_plus_1) &
+            + wx0*wy1*wz1*delbx(i,j+1, k_plus_1) &
+            + wx1*wy1*wz1*delbx(i+1,j+1, k_plus_1)
+
+            delbzp =delbzp + wx0*wy0*wz0*delbz(i,j,k) &
+            + wx1*wy0*wz0*delbz(i+1,j,k) &
+            + wx0*wy1*wz0*delbz(i,j+1,k)  &
+            + wx1*wy1*wz0*delbz(i+1,j+1,k)  &
+            + wx0*wy0*wz1*delbz(i,j, k_plus_1)  &
+            + wx1*wy0*wz1*delbz(i+1,j, k_plus_1)  &
+            + wx0*wy1*wz1*delbz(i,j+1, k_plus_1)  &
+            + wx1*wy1*wz1*delbz(i+1,j+1, k_plus_1)
  200     continue
          exp1 = exp1/4.
          ezp = ezp/4.
@@ -182,6 +229,8 @@
 
       enddo
 
+      end_ppush_tm = MPI_WTIME()
+      ppush_tm = ppush_tm + end_ppush_tm - start_ppush_tm
       return
       end
 !
@@ -204,7 +253,8 @@
       REAL(8) :: dbdxp,dbdzp,bfldp,bfldxp,bfldzp,bfldzetap, bstar, dbdzetap=0
       REAL(8) :: rhox(4),rhoy(4),psp,pzp,curlbp(3),Bstar3(3)
 !      real(8),dimension(3)::curlbp,Bstar3
-
+      start_cpush_tm = MPI_WTIME()
+!$acc parallel loop gang vector private(bstar3,rhoy,rhox)
       do m=1,mm(1)
          x=x3(m)
          i = int(x/dxeq)
@@ -274,6 +324,7 @@
          delbzp=0.
 
 !  4 pt. avg. done explicitly for vectorization...
+         !$acc loop seq
          do 200 l=1,lr(1)
 !
 !SP            xs=x3(m)+rhox(l) !rwx(1,l)*rhog
@@ -284,7 +335,52 @@
             if( (xt<2*dxeq).or.(xt>lx-2*dxeq) ) xt=x3(m)
             if( (zt<2*dzeq).or.(zt>lz-2*dzeq) ) zt=z3(m)
             zeta=modulo(zeta3(m),2*pi)
-            include "pushli.h"
+           i=int(xt/dx)
+            j=int(zt/dz)
+            k=int(zeta/dzeta)
+
+
+            wx0=float(i+1)-xt/dx
+            wx1=1.-wx0
+            wy0=float(j+1)-zt/dz
+            wy1=1.-wy0
+            wz0=float(k+1)-zeta/dzeta
+            wz1=1.-wz0
+
+              k_plus_1=k+1
+              if(k==kmx) k_plus_1=0
+            exp1=exp1 + wx0*wy0*wz0*ex(i,j,k) + wx1*wy0*wz0*ex(i+1,j,k) &
+            + wx0*wy1*wz0*ex(i,j+1,k) + wx1*wy1*wz0*ex(i+1,j+1,k) + &
+            wx0*wy0*wz1*ex(i,j, k_plus_1) + wx1*wy0*wz1*ex(i+1,j, k_plus_1) + &
+            wx0*wy1*wz1*ex(i,j+1, k_plus_1) + wx1*wy1*wz1*ex(i+1,j+1, k_plus_1)
+
+            ezp=ezp + wx0*wy0*wz0*ez(i,j,k) + wx1*wy0*wz0*ez(i+1,j,k) &
+            + wx0*wy1*wz0*ez(i,j+1,k) + wx1*wy1*wz0*ez(i+1,j+1,k) + &
+            wx0*wy0*wz1*ez(i,j, k_plus_1) + wx1*wy0*wz1*ez(i+1,j, k_plus_1) + &
+            wx0*wy1*wz1*ez(i,j+1, k_plus_1) + wx1*wy1*wz1*ez(i+1,j+1, k_plus_1)
+
+            ezetap =ezetap + wx0*wy0*wz0*ezeta(i,j,k) + wx1*wy0*wz0*ezeta(i+1,j,k) &
+            + wx0*wy1*wz0*ezeta(i,j+1,k) + wx1*wy1*wz0*ezeta(i+1,j+1,k) + &
+            wx0*wy0*wz1*ezeta(i,j, k_plus_1) + wx1*wy0*wz1*ezeta(i+1,j, k_plus_1) + &
+            wx0*wy1*wz1*ezeta(i,j+1, k_plus_1) + wx1*wy1*wz1*ezeta(i+1,j+1, k_plus_1)
+
+            delbxp =delbxp + wx0*wy0*wz0*delbx(i,j,k)  &
+            + wx1*wy0*wz0*delbx(i+1,j,k) &
+            + wx0*wy1*wz0*delbx(i,j+1,k) &
+            + wx1*wy1*wz0*delbx(i+1,j+1,k) &
+            + wx0*wy0*wz1*delbx(i,j, k_plus_1) &
+            + wx1*wy0*wz1*delbx(i+1,j, k_plus_1) &
+            + wx0*wy1*wz1*delbx(i,j+1, k_plus_1) &
+            + wx1*wy1*wz1*delbx(i+1,j+1, k_plus_1)
+
+            delbzp =delbzp + wx0*wy0*wz0*delbz(i,j,k) &
+            + wx1*wy0*wz0*delbz(i+1,j,k) &
+            + wx0*wy1*wz0*delbz(i,j+1,k)  &
+            + wx1*wy1*wz0*delbz(i+1,j+1,k)  &
+            + wx0*wy0*wz1*delbz(i,j, k_plus_1)  &
+            + wx1*wy0*wz1*delbz(i+1,j, k_plus_1)  &
+            + wx0*wy1*wz1*delbz(i,j+1, k_plus_1)  &
+            + wx1*wy1*wz1*delbz(i+1,j+1, k_plus_1)
  200     continue
          exp1 = exp1/4.
          ezp = ezp/4.
@@ -382,19 +478,20 @@
 !  write(935,*)'before PETSc sovling'
 !  close(935)
 !end if
-      if(myid==0 .and. m==1)then
-           open(93, file='test_energy',status='unknown',position='append')
-           write(93,*) mu(m)*b+0.5*mims(1)*u2(m)**2-q(1)*z2(m)*ez(i,j,k)
-           close(93)
+      !if(myid==0 .and. m==1)then
+      !     open(93, file='test_energy',status='unknown',position='append')
+      !     write(93,*) mu(m)*b+0.5*mims(1)*u2(m)**2-q(1)*z2(m)*ez(i,j,k)
+      !     close(93)
         !       write(*,*) mu(m)*b+0.5*mims(1)*u2(m)**2-q(1)*z2(m)*ez(i,j,k)
         ! close(19)
-      end if
+      !end if
       
 
 
       
 
       enddo
-
+      end_cpush_tm = MPI_WTIME()
+      cpush_tm = cpush_tm + end_cpush_tm - start_cpush_tm
       return
       end

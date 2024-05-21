@@ -15,6 +15,7 @@
        integer :: status,mid_i,mid_j
        integer :: n,i,j,k,ip,m,outk,ix=135,jx=68
        real::random
+       real :: tmp
        PetscInt is,js,iw,jw,idx,n_in_porcs
        PetscInt one,three,vec_start,vec_end
        PetscErrorCode petsc_ierr
@@ -227,6 +228,7 @@
  end if
 
 !              write(*,*) 'after init'
+  start_total_tm = MPI_WTIME()
   do  timestep=ncurr,nm
 !       write(*,*) nm          
            tcurr = tcurr+dt
@@ -672,7 +674,20 @@
 
 !        write(*,*) timestep
  end do
-
+end_total_tm = MPI_WTIME()
+total_tm = total_tm + end_total_tm - start_total_tm
+        call MPI_reduce(ppush_tm, tmp, 1, MPI_REAL8, MPI_SUM, 0, MPI_COMM_WORLD, ierr)
+        if(myid==0)ppush_tm = tmp/real(numprocs)
+        call MPI_reduce(cpush_tm, tmp, 1, MPI_REAL8, MPI_SUM, 0, MPI_COMM_WORLD, ierr)
+        if(myid==0)cpush_tm = tmp/real(numprocs)
+        call MPI_reduce(integ_tm, tmp, 1, MPI_REAL8, MPI_SUM, 0, MPI_COMM_WORLD, ierr)
+        if(myid==0)integ_tm = tmp/real(numprocs)
+        call MPI_reduce(total_tm, tmp, 1, MPI_REAL8, MPI_SUM, 0, MPI_COMM_WORLD, ierr)
+        if(myid==0)total_tm = tmp/real(numprocs)
+        if(myid==0)open(123, file = "gemx_timing.txt", status = "replace", action="write")
+        if(myid==0)write(123,*)'ppush time', ppush_tm, 'cpush time', cpush_tm, 'integ time', integ_tm, 'total time', total_tm, 'other (including field solver)', total_tm - ppush_tm - cpush_tm- integ_tm
+        if(myid==0)call flush(123)
+        if(myid==0)close(123)
 ! if(myid.eq.master .and. ifield_solver.eq.1)then
 !              open(unit=11, file = 'testphi',status='unknown',action='write')
 !               do j=0,jmx
@@ -769,8 +784,8 @@
 
       if(iget.eq.1) amp=0.
 
-      dx=lx/float(imx)
-      dz=lz/float(jmx)
+      dx=lx/real(imx)
+      dz=lz/real(jmx)
       dzeta=pi2/(kmx+1)
 !     
       do 10 i=0,imx
@@ -2301,13 +2316,14 @@ end subroutine field
        integer::i,j,k,ip,m,iflag,itemp
        real::wx0,wx1,wzeta0,wzeta1,wy0,wy1,x,z,zeta,R_major_over_R,R_major_over_R1, ave_den,avex
 
+       start_integ_tm = MPI_WTIME()
 !       write(*,*)iflag
        itemp=2
 !       iflag=2
 !       write(*,*)'after set iflag'
        den(iflag,:,:,:)=0
        upar=0
-
+       !$acc parallel loop gang vector
        do m=1,mm(1)
 
          x=x3(m)
@@ -2333,37 +2349,57 @@ end subroutine field
          wzeta1=1.-wzeta0
 
 !         write(*,*) i,j
-         
+         !$acc atomic update 
          den(iflag,i,j,k)=den(iflag,i,j,k)+w3(m)*wx0*wy0*wzeta0*R_major_over_R
+         !$acc atomic update
          den(iflag,i+1,j,k)=den(iflag,i+1,j,k)+w3(m)*wx1*wy0*wzeta0*R_major_over_R1
+         !$acc atomic update
          den(iflag,i,j+1,k)=den(iflag,i,j+1,k)+w3(m)*wx0*wy1*wzeta0*R_major_over_R
+         !$acc atomic update
          den(iflag,i+1,j+1,k)=den(iflag,i+1,j+1,k)+w3(m)*wx1*wy1*wzeta0*R_major_over_R1
-
+         !$acc atomic update 
          upar(i,j,k)=upar(i,j,k)+u3(m)*w3(m)*wx0*wy0*wzeta0*R_major_over_R
+         !$acc atomic update
          upar(i+1,j,k)=upar(i+1,j,k)+u3(m)*w3(m)*wx1*wy0*wzeta0*R_major_over_R1
+         !$acc atomic update
          upar(i,j+1,k)=upar(i,j+1,k)+u3(m)*w3(m)*wx0*wy1*wzeta0*R_major_over_R
+         !$acc atomic update
          upar(i+1,j+1,k)=upar(i+1,j+1,k)+u3(m)*w3(m)*wx1*wy1*wzeta0*R_major_over_R1
          
          if(k/=kmx)then
+            !$acc atomic update
             den(iflag,i,j,k+1)=den(iflag,i,j,k+1)+w3(m)*wx0*wy0*wzeta1*R_major_over_R
+            !$acc atomic update
             den(iflag,i+1,j,k+1)=den(iflag,i+1,j,k+1)+w3(m)*wx1*wy0*wzeta1*R_major_over_R1
+            !$acc atomic update
             den(iflag,i,j+1,k+1)=den(iflag,i,j+1,k+1)+w3(m)*wx0*wy1*wzeta1*R_major_over_R
+            !$acc atomic update
             den(iflag,i+1,j+1,k+1)=den(iflag,i+1,j+1,k+1)+w3(m)*wx1*wy1*wzeta1*R_major_over_R1
-
+            !$acc atomic update
             upar(i,j,k+1)=upar(i,j,k+1)+u3(m)*w3(m)*wx0*wy0*wzeta1*R_major_over_R
+            !$acc atomic update
             upar(i+1,j,k+1)=upar(i+1,j,k+1)+u3(m)*w3(m)*wx1*wy0*wzeta1*R_major_over_R1
+            !$acc atomic update
             upar(i,j+1,k+1)=upar(i,j+1,k+1)+u3(m)*w3(m)*wx0*wy1*wzeta1*R_major_over_R
+            !$acc atomic update
             upar(i+1,j+1,k+1)=upar(i+1,j+1,k+1)+u3(m)*w3(m)*wx1*wy1*wzeta1*R_major_over_R1
             
          else
+            !$acc atomic update
             den(iflag,i,j,0)=den(iflag,i,j,0)+w3(m)*wx0*wy0*wzeta1*R_major_over_R
+            !$acc atomic update
             den(iflag,i+1,j,0)=den(iflag,i+1,j,0)+w3(m)*wx1*wy0*wzeta1*R_major_over_R1
+            !$acc atomic update
             den(iflag,i,j+1,0)=den(iflag,i,j+1,0)+w3(m)*wx0*wy1*wzeta1*R_major_over_R
+            !$acc atomic update
             den(iflag,i+1,j+1,0)=den(iflag,i+1,j+1,0)+w3(m)*wx1*wy1*wzeta1*R_major_over_R1
-
+            !$acc atomic update
             upar(i,j,0)=upar(i,j,0)+u3(m)*w3(m)*wx0*wy0*wzeta1*R_major_over_R
+            !$acc atomic update
             upar(i+1,j,0)=upar(i+1,j,0)+u3(m)*w3(m)*wx1*wy0*wzeta1*R_major_over_R1
+            !$acc atomic update
             upar(i,j+1,0)=upar(i,j+1,0)+u3(m)*w3(m)*wx0*wy1*wzeta1*R_major_over_R
+            !$acc atomic update
             upar(i+1,j+1,0)=upar(i+1,j+1,0)+u3(m)*w3(m)*wx1*wy1*wzeta1*R_major_over_R1
 
          end if
@@ -2400,7 +2436,8 @@ end subroutine field
  !        den_pre=den(2,:,:,:)
           end if
           
-      
+     end_integ_tm = MPI_WTIME()
+     integ_tm = integ_tm + end_integ_tm - start_integ_tm 
 
     end subroutine integ
     
