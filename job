@@ -11,7 +11,7 @@
 #SBATCH -e run.err
 #SBATCH -o run.out
 #SBATCH --gpu-bind=map_gpu:0,1,2,3
-#SBATCH -A m4491_g
+#SBATCH -A m449_g
 
 cd $SLURM_SUBMIT_DIR
 mkdir -p matrix
