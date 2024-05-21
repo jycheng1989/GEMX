@@ -1,0 +1,13 @@
+#!/bin/bash
+#SBATCH -A mp118
+#SBATCH -C cpu
+#SBATCH --qos=regular
+#SBATCH --time=12:00:00
+#SBATCH --nodes=1
+#SBATCH --ntasks-per-node=16
+#SBATCH -J testgemx
+
+mkdir -p out
+source env.sh 
+srun  -n 16 ./gem >& run.out
+
